@@ -1,0 +1,34 @@
+# Secrets — never commit
+.env
+.env.local
+*.key
+
+# Run outputs (reconstructed prompts / audit reports — keep local)
+result.txt
+extracted_prompt.txt
+*-result.txt
+*_result.txt
+*.save
+
+# Real target configs — may hold API keys / auth tokens. Commit only example.*
+targets/*.json
+!targets/example.json
+
+# Ad-hoc run outputs (raw transcripts of real targets — keep local)
+test-*.txt
+*-port-scan
+*-loop-*
+40-loop-port-scan
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# OS / editor / local
+.DS_Store
+.claude/settings.local.json

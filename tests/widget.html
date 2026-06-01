@@ -1,0 +1,44 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>DemoBot</title>
+<style>
+  body{font-family:sans-serif;margin:8px}
+  #log{height:360px;overflow:auto;border:1px solid #ccc;padding:6px}
+  .msg{margin:6px 0;padding:6px 10px;border-radius:10px;max-width:80%}
+  .msg-user{background:#dceeff;margin-left:auto;text-align:right}
+  .msg-bot{background:#eee}
+  textarea{width:78%}
+</style></head>
+<body>
+  <div id="log"></div>
+  <textarea id="msg" placeholder="Type a message..."></textarea>
+  <button id="snd" aria-label="Send message">Send</button>
+  <script>
+    // A deliberately generic chat widget: bubbles use arbitrary class names
+    // (.msg.msg-user / .msg.msg-bot) that match NO preset — exercises agnostic
+    // calibration. It replies to anything (so the calibration nonce gets a reply).
+    const log = document.getElementById('log');
+    const input = document.getElementById('msg');
+    const snd = document.getElementById('snd');
+    let n = 0;
+    function bubble(cls, text){
+      const d = document.createElement('div');
+      d.className = 'msg ' + cls;
+      const p = document.createElement('p'); p.textContent = text; d.appendChild(p);
+      log.appendChild(d); log.scrollTop = log.scrollHeight;
+      return p;
+    }
+    function send(){
+      const t = input.value.trim(); if(!t) return;
+      input.value = '';
+      bubble('msg-user', t);
+      n++;
+      // Reply after a short delay, streamed word-by-word.
+      const reply = `DemoBot reply #${n}: I am DemoBot, a demo assistant. You said "${t.slice(0,40)}".`;
+      const p = bubble('msg-bot', '');
+      const words = reply.split(' '); let i = 0;
+      (function step(){ if(i>=words.length) return; p.textContent += (i?' ':'')+words[i]; i++; setTimeout(step, 60); })();
+    }
+    snd.addEventListener('click', send);
+    input.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }});
+  </script>
+</body></html>

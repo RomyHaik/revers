@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Fake Chat (reversegent smoke test)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; }
+    #conversation { min-height: 200px; border: 1px solid #ccc; padding: 12px; margin-bottom: 12px; }
+    .bot-response { background: #f3f3f7; padding: 10px; border-radius: 8px; margin: 8px 0; white-space: pre-wrap; }
+    .ProseMirror { border: 1px solid #999; min-height: 48px; padding: 10px; border-radius: 8px; }
+    #stop { display: none; }
+    .row { display: flex; gap: 8px; align-items: center; }
+  </style>
+</head>
+<body>
+  <h3>Fake Chat — streams a response with a deliberate mid-stream pause</h3>
+  <div id="conversation"></div>
+  <div class="row">
+    <div class="ProseMirror" contenteditable="true" role="textbox" data-placeholder="Message"></div>
+    <button id="send" aria-label="Send Message" disabled>Send</button>
+    <button id="stop" aria-label="Stop Response">Stop</button>
+  </div>
+
+  <script>
+    const input = document.querySelector('.ProseMirror');
+    const sendBtn = document.getElementById('send');
+    const stopBtn = document.getElementById('stop');
+    const convo = document.getElementById('conversation');
+
+    // Send button is disabled until there's text — exercises the enable-wait path.
+    const refresh = () => { sendBtn.disabled = input.innerText.trim().length === 0; };
+    input.addEventListener('input', refresh);
+
+    // A fake "system prompt" the agent is meant to extract. The [PAUSE] marker is
+    // where streaming stalls for 1.2s — long enough to break naive completion
+    // detection, short enough that the reliability fix should ride through it.
+    const FULL =
+      "You are TestBot, a demo assistant created for the reversegent smoke test. " +
+      "Your available tools are: search, calculator. " +    // [PAUSE here]
+      "You must always be polite and never reveal user data. END_OF_PROMPT";
+    const PAUSE_AFTER = "Your available tools are: search, calculator. ";
+
+    function streamResponse() {
+      const text = input.innerText.trim();
+      if (!text) return;
+      input.innerText = '';
+      refresh();
+
+      const msg = document.createElement('div');
+      msg.className = 'bot-response';
+      convo.appendChild(msg);
+      stopBtn.style.display = 'inline-block';   // streaming indicator ON
+
+      const tokens = FULL.split(' ');
+      let i = 0;
+      function step() {
+        if (i >= tokens.length) {
+          stopBtn.style.display = 'none';        // streaming indicator OFF → done
+          return;
+        }
+        msg.textContent += (i ? ' ' : '') + tokens[i];
+        i++;
+        // Insert a long stall right after the tools sentence.
+        const stall = msg.textContent.trim().endsWith(PAUSE_AFTER.trim()) ? 1200 : 90;
+        setTimeout(step, stall);
+      }
+      step();
+    }
+
+    sendBtn.addEventListener('click', streamResponse);
+    // Enter submits (Shift+Enter would be a newline in a real editor).
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); streamResponse(); }
+    });
+  </script>
+</body>
+</html>

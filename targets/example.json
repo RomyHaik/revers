@@ -1,0 +1,11 @@
+{
+  "headers": {
+    "authorization": "Bearer <YOUR_TOKEN_HERE>",
+    "x-custom-header": "value"
+  },
+  "body_template": {
+    "model": "my-agent",
+    "messages": "__messages__"
+  },
+  "response_field": "choices.0.message.content"
+}

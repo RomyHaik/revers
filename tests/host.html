@@ -1,0 +1,22 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Host page with collapsed chat widget</title></head>
+<body>
+  <h1>Some product website</h1>
+  <p>The chat widget below starts collapsed and lives in an iframe — exactly the
+     case (Genesys/Intercom/Drift) that broke main-frame-only detection.</p>
+
+  <!-- Collapsed launcher: autodetect must click this to reveal the widget. -->
+  <button id="launch" aria-label="Chat with us"
+          style="position:fixed;bottom:20px;right:20px">💬 Chat</button>
+
+  <!-- Chat UI is iframed and hidden until the launcher is clicked. -->
+  <div id="wrap" style="display:none;position:fixed;bottom:70px;right:20px">
+    <iframe id="cw" src="widget.html" style="width:380px;height:460px;border:1px solid #999"></iframe>
+  </div>
+
+  <script>
+    document.getElementById('launch').addEventListener('click', () => {
+      document.getElementById('wrap').style.display = 'block';
+    });
+  </script>
+</body></html>
