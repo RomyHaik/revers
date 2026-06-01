@@ -43,6 +43,45 @@ def _is_mac() -> bool:
     return platform.system() == "Darwin"
 
 
+# A leading "Agent at 06:09 PM, June 1" style chat timestamp header — stripped
+# from captured replies so the response is just the message body.
+_TS_HEADER_RE = re.compile(r"^[A-Za-z][\w ]{0,24} at \d{1,2}:\d{2}\s*(?:AM|PM)(?:,.*)?$", re.I)
+
+# Transient "still working" bubbles many chat UIs show before the real reply
+# streams in. These are static (no DOM mutation), so without this guard the
+# quiet-gate would wrongly accept them as the response.
+_PLACEHOLDER_RE = re.compile(
+    r"^(thinking|typing|working(?: on it)?|loading|generating|searching|"
+    r"one moment|just a moment|please wait|let me (?:think|check)[^.]*)"
+    r"[\s.…!]*$",
+    re.I,
+)
+
+
+def _strip_ts_header(text: str) -> str:
+    """Remove a leading chat timestamp header line if real content follows."""
+    if not text:
+        return text or ""
+    lines = text.split("\n")
+    if len(lines) >= 2 and _TS_HEADER_RE.match(lines[0].strip()):
+        rest = lines[1:]
+        while rest and not rest[0].strip():
+            rest = rest[1:]
+        if rest:
+            return "\n".join(rest).strip()
+    return text.strip()
+
+
+def _is_placeholder(text: str) -> bool:
+    """True for empty / dots-only / 'Thinking…'-style transient bubbles."""
+    body = (text or "").strip()
+    if not body:
+        return True
+    if re.fullmatch(r"[.…·•\-\s]*", body):
+        return True
+    return bool(_PLACEHOLDER_RE.match(body))
+
+
 # JavaScript injected into the page to track response streaming precisely.
 # A MutationObserver records the timestamp of the last DOM change *inside the
 # assistant-message subtree*. This lets us detect "streaming has gone quiet"
@@ -926,31 +965,41 @@ class BrowserClient:
             quiet = state.get("quietMs", 0)
             if count > baseline_count:
                 saw_new = True
-            if text:
-                last_text = text
+
+            clean = _strip_ts_header(text)
+            # A "Thinking…"/typing/empty placeholder is a transient bubble that
+            # stays static (no DOM mutation) — so the quiet-gate would otherwise
+            # accept it. Never treat it as the real reply; keep waiting until real
+            # content streams in and settles.
+            placeholder = _is_placeholder(clean)
+            if clean and not placeholder:
+                last_text = clean
 
             streaming = self._is_streaming()
             if streaming:
                 indicator_seen = True
 
-            if saw_new and text:
+            if saw_new and clean and not placeholder:
                 if quiet >= hard_quiet_ms:
-                    return text  # indicator likely stale — accept on long quiet
+                    return clean  # indicator likely stale — accept on long quiet
                 if not streaming:
                     # If we saw a trustworthy indicator and it's now gone, a short
                     # settle is enough. Otherwise require the full backstop window.
                     needed = settle_quiet_ms if indicator_seen else backstop_quiet_ms
                     if quiet >= needed:
-                        return text
+                        return clean
 
             self._page.wait_for_timeout(preset.poll_interval_ms)
 
-        # Timeout — return whatever we managed to capture.
+        # Timeout — return whatever real content we captured (never a placeholder).
         log.warning("Response wait timed out after %ds", preset.max_response_wait_s)
-        final = last_text or self._extract_last_response()
+        final = last_text or _strip_ts_header(self._extract_last_response())
+        if _is_placeholder(final):
+            final = ""
         if not final:
             raise TimeoutError(
-                f"No response received within {preset.max_response_wait_s}s"
+                f"No response received within {preset.max_response_wait_s}s "
+                f"(target may still be 'thinking')"
             )
         return final
 

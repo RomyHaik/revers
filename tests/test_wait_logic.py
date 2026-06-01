@@ -155,10 +155,30 @@ def scenario_c():
     check("C: never returns stale text", result != stale)
 
 
+def scenario_d():
+    print("D. 'Thinking…' placeholder must not be captured as the reply")
+    # A timestamped 'Thinking…' bubble appears and stays STATIC (no indicator),
+    # so the quiet-gate would wrongly accept it — then the real answer streams in.
+    final = "I help with account, billing, and DNS questions."
+    timeline = [
+        (300,  "Agent at 06:09 PM, June 1\n\nThinking......", 1),  # placeholder, static
+        (3200, "Agent at 06:09 PM, June 1\n\nI help with account", 1),  # real reply begins
+        (3800, "Agent at 06:09 PM, June 1\n\n" + final, 1),       # settles
+    ]
+    page = FakePage(timeline, indicator=None)
+    result = _wait(_client(page), page, baseline=0)
+    print(f"  -> {result!r} @ t={page.clock}ms")
+    check("D: does NOT return the placeholder", "Thinking" not in result)
+    check("D: returns the real answer", result == final)
+    check("D: timestamp header stripped", not result.startswith("Agent at"))
+    check("D: waited past the placeholder phase", page.clock >= 3200)
+
+
 if __name__ == "__main__":
     print("Testing BrowserClient._wait_for_response\n")
     scenario_a()
     scenario_b()
     scenario_c()
+    scenario_d()
     print(f"\n{'ALL PASS' if _OK else 'FAILURE'}")
     sys.exit(0 if _OK else 1)
